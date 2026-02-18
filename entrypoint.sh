@@ -9,8 +9,8 @@ cat > /root/.picoclaw/config.json << HEREDOC
       "restrict_to_workspace": true,
       "provider": "${PICOCLAW_PROVIDER:-}",
       "model": "${PICOCLAW_MODEL:-gemini-2.0-flash}",
-      "max_tokens": 8192,
-      "temperature": 0.7,
+      "max_tokens": ${PICOCLAW_MAX_TOKENS:-8192},
+      "temperature": ${PICOCLAW_TEMPERATURE:-0.7},
       "max_tool_iterations": 20
     }
   },
