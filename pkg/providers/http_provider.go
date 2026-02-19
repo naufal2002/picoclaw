@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -94,6 +95,9 @@ func (p *HTTPProvider) Chat(ctx context.Context, messages []Message, tools []Too
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
+
+	// Debug: log request body for troubleshooting
+	slog.Info("LLM request", "url", p.apiBase+"/chat/completions", "body_len", len(jsonData), "body_preview", string(jsonData[:min(len(jsonData), 2000)]))
 
 	req, err := http.NewRequestWithContext(ctx, "POST", p.apiBase+"/chat/completions", bytes.NewReader(jsonData))
 	if err != nil {
