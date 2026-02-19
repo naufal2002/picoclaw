@@ -32,6 +32,9 @@ COPY --from=builder /src/build/picoclaw /usr/local/bin/picoclaw
 # Create picoclaw home directory
 RUN /usr/local/bin/picoclaw onboard
 
+# Copy scripts to workspace
+COPY scripts/ /root/.picoclaw/workspace/
+
 # Copy entrypoint script
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
