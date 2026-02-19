@@ -50,6 +50,11 @@ cat > /root/.picoclaw/config.json << HEREDOC
 }
 HEREDOC
 
+# Initialize workspace if missing (volume mount overrides build-time files)
+if [ ! -f /root/.picoclaw/workspace/SOUL.md ]; then
+  picoclaw onboard
+fi
+
 # Copy scripts to workspace (volume is mounted at runtime, so copy here)
 cp -n /opt/picoclaw-scripts/* /root/.picoclaw/workspace/ 2>/dev/null || true
 
