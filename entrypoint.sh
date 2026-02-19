@@ -50,4 +50,7 @@ cat > /root/.picoclaw/config.json << HEREDOC
 }
 HEREDOC
 
+# Copy scripts to workspace (volume is mounted at runtime, so copy here)
+cp -n /opt/picoclaw-scripts/* /root/.picoclaw/workspace/ 2>/dev/null || true
+
 exec picoclaw "$@"
