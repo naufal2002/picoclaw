@@ -15,7 +15,7 @@ def get_btc_realtime():
     """Ambil harga BTC real-time dari Binance"""
     try:
         resp = requests.get(
-            "https://api.binance.com/api/v3/ticker/price",
+            "https://api.binance.us/api/v3/ticker/price",
             params={"symbol": "BTCUSDT"},
             timeout=5,
         )
@@ -29,7 +29,7 @@ def get_btc_klines():
     """Ambil 1-menit candlestick data dari Binance (real-time)"""
     try:
         resp = requests.get(
-            "https://api.binance.com/api/v3/klines",
+            "https://api.binance.us/api/v3/klines",
             params={
                 "symbol": "BTCUSDT",
                 "interval": "1m",
