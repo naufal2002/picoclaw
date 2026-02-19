@@ -22,6 +22,10 @@ cat > /root/.picoclaw/config.json << HEREDOC
     "openrouter": {
       "api_key": "${OPENROUTER_API_KEY:-}",
       "api_base": ""
+    },
+    "openai": {
+      "api_key": "${OPENAI_API_KEY:-}",
+      "api_base": "${OPENAI_API_BASE:-}"
     }
   },
   "channels": {
