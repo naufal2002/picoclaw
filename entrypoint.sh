@@ -59,11 +59,6 @@ if [ ! -f /root/.picoclaw/workspace/SOUL.md ]; then
   picoclaw onboard
 fi
 
-# One-time cleanup: remove stuck financial-tracker and sessions
-rm -rf /root/.picoclaw/workspace/sessions/* 2>/dev/null || true
-rm -rf /root/.picoclaw/workspace/financial-tracker 2>/dev/null || true
-rm -rf /root/.picoclaw/workspace/skills/_financial-tracker 2>/dev/null || true
-
 # Copy scripts to workspace (volume is mounted at runtime, so copy here)
 cp -n /opt/picoclaw-scripts/* /root/.picoclaw/workspace/ 2>/dev/null || true
 
