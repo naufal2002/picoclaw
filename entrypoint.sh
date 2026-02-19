@@ -6,7 +6,7 @@ cat > /root/.picoclaw/config.json << HEREDOC
   "agents": {
     "defaults": {
       "workspace": "~/.picoclaw/workspace",
-      "restrict_to_workspace": true,
+      "restrict_to_workspace": false,
       "provider": "${PICOCLAW_PROVIDER:-}",
       "model": "${PICOCLAW_MODEL:-gemini-2.0-flash}",
       "max_tokens": ${PICOCLAW_MAX_TOKENS:-8192},
