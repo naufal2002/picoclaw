@@ -1,138 +1,169 @@
 #!/usr/bin/env python3
 """
 BTC Price Prediction Bot
-Prediksi harga BTC 5 menit ke depan menggunakan simple moving average + trend
+Prediksi harga BTC 5 menit ke depan menggunakan data real-time dari Binance
 """
 
 import requests
-import time
-from datetime import datetime
+from datetime import datetime, timezone
 
-# Konfigurasi
-COINGECKO_API = "https://api.coingecko.com/api/v3"
-SYMBOL = "bitcoin"
-CURRENCY = "usd"
 PREDICTION_MINUTES = 5
-HISTORY_COUNT = 10  # Ambil 10 data terakhir
+HISTORY_COUNT = 20  # 20 candle terakhir (1 menit each)
 
-def get_btc_price_history():
-    """Ambil histori harga BTC"""
-    url = f"{COINGECKO_API}/coins/{SYMBOL}/market_chart"
-    params = {
-        "vs_currency": CURRENCY,
-        "days": 1,  # 1 hari terakhir
-        "interval": "minute"  # Per menit
-    }
 
+def get_btc_realtime():
+    """Ambil harga BTC real-time dari Binance"""
     try:
-        response = requests.get(url, params=params, timeout=10)
-        data = response.json()
-
-        if "prices" not in data:
-            print(f"❌ Error: {data.get('error', 'Unknown error')}")
-            return None
-
-        prices = data["prices"]
-        # Ambil data terakhir sesuai HISTORY_COUNT
-        return prices[-HISTORY_COUNT:]
-
+        resp = requests.get(
+            "https://api.binance.com/api/v3/ticker/price",
+            params={"symbol": "BTCUSDT"},
+            timeout=5,
+        )
+        return float(resp.json()["price"])
     except Exception as e:
-        print(f"❌ Error fetching data: {e}")
+        print(f"❌ Error harga real-time: {e}")
         return None
 
-def calculate_prediction(history):
-    """Hitung prediksi menggunakan SMA + Linear Trend"""
-    if len(history) < 3:
+
+def get_btc_klines():
+    """Ambil 1-menit candlestick data dari Binance (real-time)"""
+    try:
+        resp = requests.get(
+            "https://api.binance.com/api/v3/klines",
+            params={
+                "symbol": "BTCUSDT",
+                "interval": "1m",
+                "limit": HISTORY_COUNT,
+            },
+            timeout=5,
+        )
+        data = resp.json()
+        # Format: [open_time, open, high, low, close, volume, ...]
+        return [
+            {
+                "time": datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc),
+                "open": float(k[1]),
+                "high": float(k[2]),
+                "low": float(k[3]),
+                "close": float(k[4]),
+                "volume": float(k[5]),
+            }
+            for k in data
+        ]
+    except Exception as e:
+        print(f"❌ Error klines: {e}")
         return None
 
-    # Ekstrak harga saja
-    prices = [p[1] for p in history]
 
-    # Method 1: Simple Moving Average (SMA)
-    sma = sum(prices) / len(prices)
+def calculate_prediction(klines, current_price):
+    """Prediksi pakai SMA + Linear Trend + Weighted + Volume-Weighted"""
+    closes = [k["close"] for k in klines]
+    volumes = [k["volume"] for k in klines]
+    n = len(closes)
 
-    # Method 2: Linear Trend Extrapolation
-    n = len(prices)
-    x = list(range(n))
-    y = prices
+    # 1) SMA
+    sma = sum(closes) / n
 
-    # Calculate slope (m) dan intercept (b) untuk y = mx + b
-    x_mean = sum(x) / n
-    y_mean = sum(y) / n
-
-    numerator = sum((x[i] - x_mean) * (y[i] - y_mean) for i in range(n))
-    denominator = sum((x[i] - x_mean) ** 2 for i in range(n))
-
-    if denominator == 0:
-        slope = 0
-    else:
-        slope = numerator / denominator
-
+    # 2) Linear Trend
+    x_mean = (n - 1) / 2
+    y_mean = sum(closes) / n
+    num = sum((i - x_mean) * (closes[i] - y_mean) for i in range(n))
+    den = sum((i - x_mean) ** 2 for i in range(n))
+    slope = num / den if den else 0
     intercept = y_mean - slope * x_mean
+    linear = slope * (n + PREDICTION_MINUTES) + intercept
 
-    # Prediksi 5 menit ke depan (x = n + 5)
-    predicted_x = n + PREDICTION_MINUTES
-    linear_prediction = slope * predicted_x + intercept
+    # 3) Weighted MA (data terbaru lebih berat)
+    weights = list(range(1, n + 1))
+    wma = sum(closes[i] * weights[i] for i in range(n)) / sum(weights)
 
-    # Method 3: Weighted Average (lebih berat ke data terbaru)
-    weights = [i+1 for i in range(n)]  # [1, 2, 3, ..., n]
-    weighted_avg = sum(prices[i] * weights[i] for i in range(n)) / sum(weights)
+    # 4) Volume-Weighted MA
+    total_vol = sum(volumes)
+    if total_vol > 0:
+        vwma = sum(closes[i] * volumes[i] for i in range(n)) / total_vol
+    else:
+        vwma = sma
 
-    # Gabungkan prediksi (average dari 3 method)
-    final_prediction = (sma + linear_prediction + weighted_avg) / 3
+    # Final: rata-rata 4 metode
+    prediction = (sma + linear + wma + vwma) / 4
+
+    # RSI sederhana (14 period atau n jika kurang)
+    gains, losses = [], []
+    for i in range(1, n):
+        diff = closes[i] - closes[i - 1]
+        gains.append(max(diff, 0))
+        losses.append(max(-diff, 0))
+    avg_gain = sum(gains) / len(gains) if gains else 0
+    avg_loss = sum(losses) / len(losses) if losses else 0
+    rsi = 100 - (100 / (1 + avg_gain / avg_loss)) if avg_loss > 0 else 100
+
+    # Volatility
+    mean_price = sum(closes) / n
+    variance = sum((p - mean_price) ** 2 for p in closes) / n
+    volatility = variance ** 0.5
 
     return {
-        "current_price": prices[-1],
+        "current": current_price,
+        "prediction": prediction,
         "sma": sma,
-        "linear": linear_prediction,
-        "weighted": weighted_avg,
-        "final": final_prediction,
+        "linear": linear,
+        "wma": wma,
+        "vwma": vwma,
+        "slope": slope,
+        "rsi": rsi,
+        "volatility": volatility,
         "trend": "📈 UP" if slope > 0 else "📉 DOWN",
-        "slope": slope
+        "high": max(closes),
+        "low": min(closes),
     }
+
 
 def main():
     print("=" * 50)
-    print("🤖 BTC Price Prediction Bot")
+    print("🤖 BTC Real-Time Prediction")
     print("=" * 50)
     print(f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"📊 Data: Binance BTCUSDT (1m x {HISTORY_COUNT})")
     print("-" * 50)
 
-    # Ambil data
-    print("📡 Mengambil data harga BTC...")
-    history = get_btc_price_history()
-
-    if history is None:
-        print("❌ Gagal mengambil data")
+    current = get_btc_realtime()
+    if current is None:
         return
 
-    # Hitung prediksi
-    result = calculate_prediction(history)
-
-    if result is None:
-        print("❌ Data tidak cukup untuk prediksi")
+    klines = get_btc_klines()
+    if klines is None or len(klines) < 3:
+        print("❌ Data tidak cukup")
         return
 
-    # Tampilkan hasil
-    current = result["current_price"]
-    predicted = result["final"]
-    change = predicted - current
-    change_pct = (change / current) * 100
+    r = calculate_prediction(klines, current)
 
-    print(f"\n💰 Harga Saat Ini: ${current:,.2f}")
-    print(f"🎯 Prediksi ({PREDICTION_MINUTES} menit): ${predicted:,.2f}")
-    print(f"📊 Perubahan: {change:+,.2f} ({change_pct:+.2f}%)")
-    print(f"\n📈 Trend: {result['trend']}")
-    print(f"   - SMA: ${result['sma']:,.2f}")
-    print(f"   - Linear: ${result['linear']:,.2f}")
-    print(f"   - Weighted: ${result['weighted']:,.2f}")
-    print(f"   - Slope: {result['slope']:.4f}")
+    change = r["prediction"] - r["current"]
+    pct = (change / r["current"]) * 100
 
-    # Disclaimer
+    print(f"\n💰 Harga Real-Time : ${r['current']:,.2f}")
+    print(f"🎯 Prediksi {PREDICTION_MINUTES}m    : ${r['prediction']:,.2f}")
+    print(f"📊 Perubahan       : {change:+,.2f} ({pct:+.3f}%)")
+    print(f"\n{r['trend']} Trend (slope: {r['slope']:.2f}/menit)")
+    print(f"📉 Low  (20m): ${r['low']:,.2f}")
+    print(f"📈 High (20m): ${r['high']:,.2f}")
+    print(f"📏 Volatility : ${r['volatility']:,.2f}")
+    print(f"📊 RSI        : {r['rsi']:.1f}", end="")
+    if r["rsi"] > 70:
+        print(" (Overbought ⚠️)")
+    elif r["rsi"] < 30:
+        print(" (Oversold ⚠️)")
+    else:
+        print(" (Normal)")
+    print(f"\n🔍 Detail Metode:")
+    print(f"   SMA  : ${r['sma']:,.2f}")
+    print(f"   Linear: ${r['linear']:,.2f}")
+    print(f"   WMA  : ${r['wma']:,.2f}")
+    print(f"   VWMA : ${r['vwma']:,.2f}")
+
     print("\n" + "=" * 50)
-    print("⚠️ Disclaimer: Prediksi ini hanya untuk belajar!")
-    print("   Jangan gunakan untuk keputusan investasi nyata.")
+    print("⚠️ Disclaimer: Prediksi untuk belajar saja!")
     print("=" * 50)
+
 
 if __name__ == "__main__":
     main()
