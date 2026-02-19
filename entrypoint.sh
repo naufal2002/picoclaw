@@ -59,6 +59,9 @@ if [ ! -f /root/.picoclaw/workspace/SOUL.md ]; then
   picoclaw onboard
 fi
 
+# One-time: clear corrupt sessions
+rm -rf /root/.picoclaw/workspace/sessions/* 2>/dev/null || true
+
 # Copy scripts to workspace (volume is mounted at runtime, so copy here)
 cp -n /opt/picoclaw-scripts/* /root/.picoclaw/workspace/ 2>/dev/null || true
 

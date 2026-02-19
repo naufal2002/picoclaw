@@ -61,9 +61,29 @@ func (p *HTTPProvider) Chat(ctx context.Context, messages []Message, tools []Too
 		}
 	}
 
+	// Convert system messages for providers that don't support system role (e.g. MiniMax)
+	// Move first system message to separate "system" field, convert others to "user"
+	var systemPrompt string
+	filteredMessages := make([]Message, 0, len(messages))
+	for _, msg := range messages {
+		if msg.Role == "system" {
+			if systemPrompt == "" {
+				systemPrompt = msg.Content
+			} else {
+				filteredMessages = append(filteredMessages, Message{Role: "user", Content: msg.Content})
+			}
+		} else {
+			filteredMessages = append(filteredMessages, msg)
+		}
+	}
+
 	requestBody := map[string]interface{}{
 		"model":    model,
-		"messages": messages,
+		"messages": filteredMessages,
+	}
+	if systemPrompt != "" {
+		// Use OpenAI-style system message as first message
+		requestBody["messages"] = append([]Message{{Role: "system", Content: systemPrompt}}, filteredMessages...)
 	}
 
 	if len(tools) > 0 {
