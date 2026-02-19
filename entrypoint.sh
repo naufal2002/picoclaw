@@ -11,7 +11,7 @@ cat > /root/.picoclaw/config.json << HEREDOC
       "model": "${PICOCLAW_MODEL:-gemini-2.0-flash}",
       "max_tokens": ${PICOCLAW_MAX_TOKENS:-8192},
       "temperature": ${PICOCLAW_TEMPERATURE:-0.7},
-      "max_tool_iterations": 20
+      "max_tool_iterations": ${PICOCLAW_MAX_ITERATIONS:-40}
     }
   },
   "providers": {
@@ -58,9 +58,6 @@ HEREDOC
 if [ ! -f /root/.picoclaw/workspace/SOUL.md ]; then
   picoclaw onboard
 fi
-
-# One-time: clear corrupt sessions
-rm -rf /root/.picoclaw/workspace/sessions/* 2>/dev/null || true
 
 # Copy scripts to workspace (volume is mounted at runtime, so copy here)
 cp -n /opt/picoclaw-scripts/* /root/.picoclaw/workspace/ 2>/dev/null || true
